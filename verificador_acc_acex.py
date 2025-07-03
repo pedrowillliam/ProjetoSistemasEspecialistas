@@ -1,7 +1,6 @@
 import streamlit as st
 from experta import *
 
-# Dicionário que mapeia cada natureza de ACC com sua respectiva seção e artigos
 SECOES = {
     "Ensino": "Seção I — Das ACCs da Natureza Ensino (Art. 13 e 14)",
     "Pesquisa": "Seção II — Das ACCs da Natureza Pesquisa (Art. 15 e 16)",
@@ -11,11 +10,10 @@ SECOES = {
     "Interdisciplinar": "Seção VI — Das ACCs da Natureza Interdisciplinar (Art. 26 e 27)"
 }
 
-# Classe para armazenar as informações das atividades do aluno
 class Atividades(Fact):
-    ano_ingresso = Field(int, mandatory=True)  # Ano de ingresso do aluno
-    periodo_ingresso = Field(int, mandatory=True)  # Período (1 ou 2)
-    acc_ensino = Field(int, default=0)
+    ano_ingresso = Field(int, mandatory=True)  
+    periodo_ingresso = Field(int, mandatory=True)  
+    acc_ensino = Field(int, default=0) 
     acc_pesquisa = Field(int, default=0)
     acc_extensao = Field(int, default=0)
     acc_arte = Field(int, default=0)
@@ -23,27 +21,23 @@ class Atividades(Fact):
     acc_inter = Field(int, default=0)
     acex = Field(int, default=0)
 
-# Classe para armazenar as mensagens de resultado geradas pelo motor
 class Resultado(Fact):
     mensagens = Field(list, default=[])
 
-# Fato de controle para indicar se a tarefa está pendente ou concluída
 class TarefaAnalise(Fact):
     status = Field(str, mandatory=True)
 
-# Motor de inferência que aplica as regras
 class VerificaRequisitos(KnowledgeEngine):
 
     @Rule(AS.tarefa << TarefaAnalise(status='pendente'),
           AS.atv << Atividades(),
           AS.res << Resultado())
     def processar_regras_acc(self, tarefa, atv, res):
+        
         mensagens_geradas = []
 
-        # Início da análise das ACCs
         mensagens_geradas.append(("header", "Análise de ACC (Atividades Complementares)"))
 
-        # Aplica limite de 120h por natureza
         accs_computadas = {
             "Ensino": min(atv["acc_ensino"], 120),
             "Pesquisa": min(atv["acc_pesquisa"], 120),
@@ -53,36 +47,33 @@ class VerificaRequisitos(KnowledgeEngine):
             "Interdisciplinar": min(atv["acc_inter"], 120)
         }
 
-        # Mensagens detalhadas para cada natureza
         for natureza, horas in accs_computadas.items():
             if horas > 0:
                 secao = SECOES.get(natureza, "Seção não especificada")
                 mensagens_geradas.append(("info", f"Para a natureza '{natureza}', foram computadas {horas}h. (Limite de 120h conforme Art. 11, {secao})."))
 
-        # Verifica se possui no mínimo 15h em pelo menos duas naturezas
         naturezas_validas = [n for n, h in accs_computadas.items() if h >= 15]
 
         if len(naturezas_validas) >= 2:
-            mensagens_geradas.append(("success", f"✅ Requisito cumprido: Horas em {len(naturezas_validas)} naturezas distintas com no mínimo 15h cada (conforme Art. 10 e Art. 12, Seção V — Das Disposições Gerais)."))
+            mensagens_geradas.append(("success", f" Requisito cumprido: Horas em {len(naturezas_validas)} naturezas distintas com no mínimo 15h cada (conforme Art. 10 e Art. 12, Seção V — Das Disposições Gerais)."))
         else:
-            mensagens_geradas.append(("warning", f"⚠️ Requisito pendente: Você precisa de no mínimo 15h em pelo menos DUAS naturezas distintas. Atualmente, você possui apenas {len(naturezas_validas)} (conforme Art. 10 e Art. 12, Seção V — Das Disposições Gerais)."))
+            mensagens_geradas.append(("warning", f" Requisito pendente: Você precisa de no mínimo 15h em pelo menos DUAS naturezas distintas. Atualmente, você possui apenas {len(naturezas_validas)} (conforme Art. 10 e Art. 12, Seção V — Das Disposições Gerais)."))
 
-        # Análise da ACEX
         mensagens_geradas.append(("header", "Análise de ACEX (Atividades de Extensão)"))
         ingresso_requer_acex = atv["ano_ingresso"] > 2022 or (atv["ano_ingresso"] == 2022 and atv["periodo_ingresso"] == 2)
 
         if ingresso_requer_acex:
             if atv["acex"] > 0:
-                mensagens_geradas.append(("success", f"✅ ACEX declarada com {atv['acex']}h. Este requisito é obrigatório para seu ingresso em {atv['ano_ingresso']}.{atv['periodo_ingresso']} (conforme Art. 38, Capítulo V — Das Disposições Transitórias e Finais)."))
+                mensagens_geradas.append(("success", f" ACEX declarada com {atv['acex']}h. Este requisito é obrigatório para seu ingresso em {atv['ano_ingresso']}.{atv['periodo_ingresso']} (conforme Art. 38, Capítulo V — Das Disposições Transitórias e Finais)."))
             else:
-                mensagens_geradas.append(("warning", f"⚠️ Requisito pendente: A declaração de horas de ACEX é obrigatória para ingressantes a partir do semestre 2022.2 (conforme Art. 38, Capítulo V — Das Disposições Transitórias e Finais)."))
+                mensagens_geradas.append(("warning", f" Requisito pendente: A declaração de horas de ACEX é obrigatória para ingressantes a partir do semestre 2022.2 (conforme Art. 38, Capítulo V — Das Disposições Transitórias e Finais)."))
         else:
-            mensagens_geradas.append(("info", f"ℹ️ ACEX não é obrigatória para seu ingresso em {atv['ano_ingresso']}.{atv['periodo_ingresso']} (anterior a 2022.2)."))
+            mensagens_geradas.append(("info", f" ACEX não é obrigatória para seu ingresso em {atv['ano_ingresso']}.{atv['periodo_ingresso']} (anterior a 2022.2)."))
 
         self.modify(res, mensagens=mensagens_geradas)
         self.modify(tarefa, status='concluido')
 
-# Interface Streamlit (entrada de dados)
+
 st.set_page_config(page_title="Analisador de ACC e ACEX - UFAPE", layout="centered")
 st.title("🤖 Analisador de ACC e ACEX")
 st.write("Sistema especialista para verificar o cumprimento dos requisitos da Resolução CONSEPE Nº 008/2024.")
@@ -113,7 +104,7 @@ st.subheader("Carga horária de ACEX")
 acex = st.number_input("Total de horas em Atividades de Extensão (ACEX)", 0, 500, 0)
 st.markdown("---")
 
-# Botão para rodar a análise
+
 if st.button("Analisar Requisitos", type="primary"):
     engine = VerificaRequisitos()
     engine.reset()
